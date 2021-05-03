@@ -18,6 +18,8 @@
 
 import functools
 import numpy as np
+import os
+import json
 import tensorflow.compat.v1 as tf
 
 # Create a description of the features.
@@ -78,11 +80,14 @@ def parse_serialized_simulation_example(example_proto, metadata):
       example_proto,
       context_features=_CONTEXT_FEATURES,
       sequence_features=feature_description)
+
   for feature_key, item in parsed_features.items():
     convert_fn = functools.partial(
         convert_to_tensor, encoded_dtype=_FEATURE_DTYPES[feature_key]['in'])
+    print(item.values)
     parsed_features[feature_key] = tf.py_function(
         convert_fn, inp=[item.values], Tout=_FEATURE_DTYPES[feature_key]['out'])
+    print(parsed_features[feature_key])
 
   # There is an extra frame at the beginning so we can calculate pos change
   # for all frames used in the paper.
@@ -138,3 +143,13 @@ def split_trajectory(context, features, window_length=7):
   model_input_features['position'] = tf.stack(pos_stack)
 
   return tf.data.Dataset.from_tensor_slices(model_input_features)
+
+
+def _read_metadata(data_path):
+    with open(os.path.join(data_path, 'metadata.json'), 'rt') as fp:
+        return json.loads(fp.read())
+
+
+metadata = _read_metadata('/tmp/WaterDropSample/')
+ds = tf.data.TFRecordDataset('/tmp/WaterDropSample/train.tfrecord')
+ds = ds.map(functools.partial(parse_serialized_simulation_example, metadata=metadata))

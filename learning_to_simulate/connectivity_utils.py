@@ -36,6 +36,7 @@ def _compute_connectivity(positions, radius):
   """
   tree = neighbors.KDTree(positions)
   receivers_list = tree.query_radius(positions, r=radius)
+  r_l = tree.query_radius(positions, r=radius, count_only=True)
   num_nodes = len(positions)
   senders = np.repeat(range(num_nodes), [len(a) for a in receivers_list])
   receivers = np.concatenate(receivers_list, axis=0)
@@ -59,7 +60,6 @@ def _compute_connectivity_for_batch(positions, n_node, radius):
 
   """
 
-  # TODO(alvarosg): Consider if we want to support batches here or not.
   # Separate the positions corresponding to particles in different graphs.
   positions_per_graph_list = np.split(positions, np.cumsum(n_node[:-1]), axis=0)
   receivers_list = []

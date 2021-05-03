@@ -7,3 +7,7 @@ tensorflow_probability<0.9
 sklearn
 dm-tree
 matplotlib
+gast==0.2.2
+meshio
+networkx
+paraview.simple
