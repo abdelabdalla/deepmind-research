@@ -81,12 +81,15 @@ class NSSimulator(snt.AbstractModule):
         return new_velocity
 
     def get_predicted_and_target_normalized_accelerations(
-            self, next_velocity, n_nodes, n_conn, velocity_sequence, node_locations, node_connections):
-        input_graphs_tuple = self._encoder_preprocessor(velocity_sequence, n_nodes, n_conn, node_locations,
+            self, next_velocity, n_nodes, n_conn, velocity_sequence, node_locations, node_connections, velocity_sequence_noise):
+
+        noisy_velocity_sequence = velocity_sequence + velocity_sequence_noise
+        input_graphs_tuple = self._encoder_preprocessor(noisy_velocity_sequence, n_nodes, n_conn, node_locations,
                                                         node_connections)
         predicted_acceleration = self._graph_network(input_graphs_tuple)
 
-        target_acceleration = self._inverse_decoder_postprocessor(next_velocity, velocity_sequence)
+        next_velocity_adjusted = next_velocity + velocity_sequence_noise[:, -1]
+        target_acceleration = self._inverse_decoder_postprocessor(next_velocity_adjusted, noisy_velocity_sequence)
 
         return predicted_acceleration, target_acceleration
 

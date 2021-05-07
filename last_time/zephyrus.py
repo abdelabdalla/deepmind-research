@@ -122,7 +122,8 @@ def get_one_step_estimator_fn(noise_std,
             n_conn=features['n_cons'],
             velocity_sequence=features['velocity'],
             node_locations=features['locations'],
-            node_connections=features['connections']
+            node_connections=features['connections'],
+            velocity_sequence_noise=sampled_noise
         )
         pred_acceleration, target_acceleration = pred_target
 
