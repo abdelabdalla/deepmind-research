@@ -24,6 +24,7 @@
    https://arxiv.org/abs/2002.09405
 
 """
+import sys
 
 import graph_nets as gn
 import sonnet as snt

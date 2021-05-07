@@ -86,6 +86,9 @@ class EncodeProcessDecode(snt.AbstractModule):
                 process_network_k, latent_graph_prev_k)
             latent_graph_prev_k = latent_graph_k
 
+        latent_graph_m = latent_graph_k
+        return latent_graph_m
+
     def _process_step(
             self, process_network_k: snt.Module,
             latent_graph_prev_k: gn.graphs.GraphsTuple) -> gn.graphs.GraphsTuple:

@@ -20,6 +20,7 @@ import functools
 import numpy as np
 import os
 import json
+import sys
 import tensorflow.compat.v1 as tf
 
 # Create a description of the features.
@@ -53,8 +54,11 @@ def convert_to_tensor(x, encoded_dtype):
     out = np.frombuffer(x[0].numpy(), dtype=encoded_dtype)
   else:
     out = []
+    i = 0
     for el in x:
+      #tf.print(i, output_stream=sys.stdout)
       out.append(np.frombuffer(el.numpy(), dtype=encoded_dtype))
+      i += 1
   out = tf.convert_to_tensor(np.array(out))
   return out
 
@@ -76,6 +80,7 @@ def parse_serialized_simulation_example(example_proto, metadata):
     feature_description = _FEATURE_DESCRIPTION_WITH_GLOBAL_CONTEXT
   else:
     feature_description = _FEATURE_DESCRIPTION
+
   context, parsed_features = tf.io.parse_single_sequence_example(
       example_proto,
       context_features=_CONTEXT_FEATURES,
@@ -84,15 +89,12 @@ def parse_serialized_simulation_example(example_proto, metadata):
   for feature_key, item in parsed_features.items():
     convert_fn = functools.partial(
         convert_to_tensor, encoded_dtype=_FEATURE_DTYPES[feature_key]['in'])
-    print(item.values)
     parsed_features[feature_key] = tf.py_function(
         convert_fn, inp=[item.values], Tout=_FEATURE_DTYPES[feature_key]['out'])
-    print(parsed_features[feature_key])
 
   # There is an extra frame at the beginning so we can calculate pos change
   # for all frames used in the paper.
   position_shape = [metadata['sequence_length'] + 1, -1, metadata['dim']]
-
   # Reshape positions to correct dim:
   parsed_features['position'] = tf.reshape(parsed_features['position'],
                                            position_shape)
@@ -108,6 +110,8 @@ def parse_serialized_simulation_example(example_proto, metadata):
       functools.partial(convert_fn, encoded_dtype=np.int64),
       inp=[context['particle_type'].values],
       Tout=[tf.int64])
+
+
   context['particle_type'] = tf.reshape(context['particle_type'], [-1])
   return context, parsed_features
 
@@ -150,6 +154,9 @@ def _read_metadata(data_path):
         return json.loads(fp.read())
 
 
-metadata = _read_metadata('/tmp/WaterDropSample/')
+"""metadata = _read_metadata('/tmp/WaterDropSample/')
 ds = tf.data.TFRecordDataset('/tmp/WaterDropSample/train.tfrecord')
 ds = ds.map(functools.partial(parse_serialized_simulation_example, metadata=metadata))
+
+v = functools.partial(split_trajectory, window_length=6 + 1)
+x = ds.flat_map(v)"""

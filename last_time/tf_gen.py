@@ -54,7 +54,7 @@ def file_format(point_vel, point_location, point_connections, n_nodes, n_cons, k
 
 
 file_location = '/Users/abdelabdalla/Documents/Jet Updated'
-record_file = '/Volumes/Samsung/data_t'
+record_file = '/Volumes/Samsung/data_t3'
 
 run_dir = os.listdir(file_location)
 run_pattern = "run*"
@@ -94,12 +94,12 @@ for run in run_list:
         if time_steps >= 200:
             break
         mesh = meshio.read(path)
-        vels.append(np.delete(mesh.point_data['Velocity'], 2, 1))
+        vels.append(np.delete(mesh.point_data['Velocity'], 2, 1).flatten())
         time_steps += 1
 
     vel_list.append(vels)
-    loc_list.append(locs)
-    con_list.append(cons)
+    loc_list.append(locs.flatten())
+    con_list.append(cons.flatten())
     n_nodes_list.append(len(locs))
     n_cons_list.append(len(cons))
 
@@ -110,7 +110,7 @@ for run in run_list:
         writer.write(tf_example.SerializeToString())
 
 with tf.io.TFRecordWriter(record_file + '/test.tfrecord') as writer:
-    for i in range(41, 44):
+    for i in range(40, 44):
         print('writing test ' + str(i))
         tf_example = file_format(vel_list[i], loc_list[i], con_list[i], n_nodes_list[i], n_cons_list[i], i)
         writer.write(tf_example.SerializeToString())
@@ -119,5 +119,4 @@ with tf.io.TFRecordWriter(record_file + '/validate.tfrecord') as writer:
     for i in range(44, 48):
         print('writing validate ' + str(i))
         tf_example = file_format(vel_list[i], loc_list[i], con_list[i], n_nodes_list[i], n_cons_list[i], i)
-        writer.write(tf_example.SerializeToString())
-"""
+        writer.write(tf_example.SerializeToString())"""

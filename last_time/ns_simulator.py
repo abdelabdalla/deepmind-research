@@ -2,8 +2,9 @@ import graph_nets as gn
 import sonnet as snt
 import tensorflow as tf
 
-from last_time import graph_network
 from last_time import connectivity_utils
+from last_time import graph_network
+
 
 # TODO add noise to everything
 
@@ -52,11 +53,13 @@ class NSSimulator(snt.AbstractModule):
 
         edge_features = []
 
-        relative_displacements = tf.gather(node_locations, senders) - tf.gather(node_locations, receivers)
+        send = tf.gather(node_locations, senders)
+        rec = tf.gather(node_locations, receivers)
+
+        relative_displacements = send - rec
         edge_features.append(relative_displacements)
         relative_distances = tf.norm(relative_displacements, axis=-1, keep_dims=True)
         edge_features.append(relative_distances)
-
 
         return gn.graphs.GraphsTuple(
             nodes=tf.concat(node_features, axis=-1),
@@ -79,8 +82,8 @@ class NSSimulator(snt.AbstractModule):
 
     def get_predicted_and_target_normalized_accelerations(
             self, next_velocity, n_nodes, n_conn, velocity_sequence, node_locations, node_connections):
-
-        input_graphs_tuple = self._encoder_preprocessor(velocity_sequence, n_nodes, n_conn, node_locations, node_connections)
+        input_graphs_tuple = self._encoder_preprocessor(velocity_sequence, n_nodes, n_conn, node_locations,
+                                                        node_connections)
         predicted_acceleration = self._graph_network(input_graphs_tuple)
 
         target_acceleration = self._inverse_decoder_postprocessor(next_velocity, velocity_sequence)
@@ -88,7 +91,6 @@ class NSSimulator(snt.AbstractModule):
         return predicted_acceleration, target_acceleration
 
     def _inverse_decoder_postprocessor(self, next_velocity, velocity_sequence):
-
         previous_velocity = velocity_sequence[:, -1]
         acceleration = next_velocity - previous_velocity
 

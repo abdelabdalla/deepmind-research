@@ -1,20 +1,16 @@
 import collections
 import functools
-import json
 import os
-import pickle
+import sys
 
-from absl import app
-from absl import flags
-from absl import logging
-import numpy as np
 import tensorflow.compat.v1 as tf
 import tree
+from absl import app
+from absl import flags
 
+from last_time import noise_utils
 from last_time import ns_simulator
 from last_time import reading_utils
-
-tf.enable_eager_execution
 
 flags.DEFINE_enum(
     'mode', 'train', ['train', 'eval', 'eval_rollout'],
@@ -47,9 +43,9 @@ def prepare_inputs(tensor_dict):
 
     tensor_dict['velocity'] = vel[:, :-1]
 
-    num_nodes = tf.shape(vel)[0]
+    # num_nodes = tf.shape(vel)[0]
 
-    tensor_dict['n_nodes_per_example'] = num_nodes[tf.newaxis]
+    # tensor_dict['n_nodes_per_example'] = num_nodes[tf.newaxis]
 
     return tensor_dict, target_vel
 
@@ -91,7 +87,7 @@ def get_input_fn(data_path, batch_size, mode, split):
             ds = batch_concat(ds, batch_size)
         return ds
 
-    return input_fn()
+    return input_fn
 
 
 def _get_simulator(model_kwargs):
@@ -102,7 +98,8 @@ def _get_simulator(model_kwargs):
     return simulator
 
 
-def get_one_step_estimator_fn(latent_size=128,
+def get_one_step_estimator_fn(noise_std,
+                              latent_size=128,
                               hidden_size=128,
                               hidden_layers=2,
                               message_passing_steps=10):
@@ -116,12 +113,13 @@ def get_one_step_estimator_fn(latent_size=128,
         target_next_velocity = labels
         simulator = _get_simulator(model_kwargs)
 
-        num_conns = tf.shape(features['connections'])[0]
+        sampled_noise = noise_utils.get_random_walk_noise_for_velocity_sequence(
+            features['velocity'], noise_std_last_step=noise_std)
 
         pred_target = simulator.get_predicted_and_target_normalized_accelerations(
             next_velocity=target_next_velocity,
-            n_nodes=features['n_nodes_per_example'],
-            n_conn=num_conns,
+            n_nodes=features['n_nodes'],
+            n_conn=features['n_cons'],
             velocity_sequence=features['velocity'],
             node_locations=features['locations'],
             node_connections=features['connections']
@@ -141,8 +139,8 @@ def get_one_step_estimator_fn(latent_size=128,
 
         predicted_next_velocity = simulator(
             velocity_sequence=features['velocity'],
-            n_nodes=features['n_nodes_per_example'],
-            n_conn=num_conns,
+            n_nodes=features['n_nodes'],
+            n_conn=features['n_cons'],
             node_locations=features['locations'],
             node_connections=features['connections'])
 
@@ -154,6 +152,8 @@ def get_one_step_estimator_fn(latent_size=128,
             'one_step_position_mse': tf.metrics.mean_squared_error(
                 predicted_next_velocity, target_next_velocity)
         }
+
+        tf.print('acc loss: ', eval_metrics_ops['loss_mse'], ' vel loss: ', eval_metrics_ops['one_step_position_mse'], output_stream=sys.stdout)
         return tf.estimator.EstimatorSpec(
             mode=mode,
             train_op=train_op,
@@ -167,7 +167,7 @@ def get_one_step_estimator_fn(latent_size=128,
 def main(_):
     if FLAGS.mode in ['train', 'eval']:
         estimator = tf.estimator.Estimator(
-            get_one_step_estimator_fn())
+            get_one_step_estimator_fn(FLAGS.noise_std), model_dir=FLAGS.model_path)
         if FLAGS.mode == 'train':
             # Train all the way through.
             estimator.train(

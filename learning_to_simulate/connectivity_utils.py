@@ -15,6 +15,7 @@
 # limitations under the License.
 # ============================================================================
 """Tools to compute the connectivity of the graph."""
+import sys
 
 import numpy as np
 from sklearn import neighbors
@@ -22,7 +23,7 @@ import tensorflow.compat.v1 as tf
 
 
 def _compute_connectivity(positions, radius):
-  """Get the indices of connected edges with radius connectivity.
+    """Get the indices of connected edges with radius connectivity.
 
   Args:
     positions: Positions of nodes in the graph. Shape:
@@ -34,17 +35,19 @@ def _compute_connectivity(positions, radius):
     receiver indices [num_edges_in_graph]
 
   """
-  tree = neighbors.KDTree(positions)
-  receivers_list = tree.query_radius(positions, r=radius)
-  r_l = tree.query_radius(positions, r=radius, count_only=True)
-  num_nodes = len(positions)
-  senders = np.repeat(range(num_nodes), [len(a) for a in receivers_list])
-  receivers = np.concatenate(receivers_list, axis=0)
-  return senders, receivers
+    tree = neighbors.KDTree(positions)
+    receivers_list = tree.query_radius(positions, r=radius)
+    num_nodes = len(positions)
+    senders = np.repeat(range(num_nodes), [len(a) for a in receivers_list])
+    receivers = np.concatenate(receivers_list, axis=0)
+
+    tf.print(senders, output_stream=sys.stdout)
+
+    return senders, receivers
 
 
 def _compute_connectivity_for_batch(positions, n_node, radius):
-  """`compute_connectivity` for a batch of graphs.
+    """`compute_connectivity` for a batch of graphs.
 
   Args:
     positions: Positions of nodes in the batch of graphs. Shape:
@@ -60,45 +63,44 @@ def _compute_connectivity_for_batch(positions, n_node, radius):
 
   """
 
-  # Separate the positions corresponding to particles in different graphs.
-  positions_per_graph_list = np.split(positions, np.cumsum(n_node[:-1]), axis=0)
-  receivers_list = []
-  senders_list = []
-  n_edge_list = []
-  num_nodes_in_previous_graphs = 0
+    # Separate the positions corresponding to particles in different graphs.
+    positions_per_graph_list = np.split(positions, np.cumsum(n_node[:-1]), axis=0)
+    receivers_list = []
+    senders_list = []
+    n_edge_list = []
+    num_nodes_in_previous_graphs = 0
 
-  # Compute connectivity for each graph in the batch.
-  for positions_graph_i in positions_per_graph_list:
-    senders_graph_i, receivers_graph_i = _compute_connectivity(
-        positions_graph_i, radius)
+    # Compute connectivity for each graph in the batch.
+    for positions_graph_i in positions_per_graph_list:
+        senders_graph_i, receivers_graph_i = _compute_connectivity(
+            positions_graph_i, radius)
 
-    num_edges_graph_i = len(senders_graph_i)
-    n_edge_list.append(num_edges_graph_i)
+        num_edges_graph_i = len(senders_graph_i)
+        n_edge_list.append(num_edges_graph_i)
 
-    # Because the inputs will be concatenated, we need to add offsets to the
-    # sender and receiver indices according to the number of nodes in previous
-    # graphs in the same batch.
-    receivers_list.append(receivers_graph_i + num_nodes_in_previous_graphs)
-    senders_list.append(senders_graph_i + num_nodes_in_previous_graphs)
+        # Because the inputs will be concatenated, we need to add offsets to the
+        # sender and receiver indices according to the number of nodes in previous
+        # graphs in the same batch.
+        receivers_list.append(receivers_graph_i + num_nodes_in_previous_graphs)
+        senders_list.append(senders_graph_i + num_nodes_in_previous_graphs)
 
-    num_nodes_graph_i = len(positions_graph_i)
-    num_nodes_in_previous_graphs += num_nodes_graph_i
+        num_nodes_graph_i = len(positions_graph_i)
+        num_nodes_in_previous_graphs += num_nodes_graph_i
 
-  # Concatenate all of the results.
-  senders = np.concatenate(senders_list, axis=0).astype(np.int32)
-  receivers = np.concatenate(receivers_list, axis=0).astype(np.int32)
-  n_edge = np.stack(n_edge_list).astype(np.int32)
+    # Concatenate all of the results.
+    senders = np.concatenate(senders_list, axis=0).astype(np.int32)
+    receivers = np.concatenate(receivers_list, axis=0).astype(np.int32)
+    n_edge = np.stack(n_edge_list).astype(np.int32)
 
-  return senders, receivers, n_edge
+    return senders, receivers, n_edge
 
 
 def compute_connectivity_for_batch_pyfunc(positions, n_node, radius):
-  """`_compute_connectivity_for_batch` wrapped in a pyfunc."""
-  senders, receivers, n_edge = tf.py_function(
-      _compute_connectivity_for_batch,
-      [positions, n_node, radius], [tf.int32, tf.int32, tf.int32])
-  senders.set_shape([None])
-  receivers.set_shape([None])
-  n_edge.set_shape(n_node.get_shape())
-  return senders, receivers, n_edge
-
+    """`_compute_connectivity_for_batch` wrapped in a pyfunc."""
+    senders, receivers, n_edge = tf.py_function(
+        _compute_connectivity_for_batch,
+        [positions, n_node, radius], [tf.int32, tf.int32, tf.int32])
+    senders.set_shape([None])
+    receivers.set_shape([None])
+    n_edge.set_shape(n_node.get_shape())
+    return senders, receivers, n_edge

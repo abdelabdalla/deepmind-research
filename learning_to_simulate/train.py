@@ -46,7 +46,7 @@ from learning_to_simulate import learned_simulator
 from learning_to_simulate import noise_utils
 from learning_to_simulate import reading_utils
 
-tf.enable_eager_execution()
+# tf.enable_eager_execution()
 
 flags.DEFINE_enum(
     'mode', 'train', ['train', 'eval', 'eval_rollout'],
@@ -55,7 +55,7 @@ flags.DEFINE_enum('eval_split', 'test', ['train', 'valid', 'test'],
                   help='Split to use when running evaluation.')
 flags.DEFINE_string('data_path', None, help='The dataset directory.')
 flags.DEFINE_integer('batch_size', 2, help='The batch size.')
-flags.DEFINE_integer('num_steps', int(10), help='Number of steps of training.')
+flags.DEFINE_integer('num_steps', int(2e7), help='Number of steps of training.')
 flags.DEFINE_float('noise_std', 6.7e-4, help='The std deviation of the noise.')
 flags.DEFINE_string('model_path', None,
                     help=('The path for saving checkpoints of the model. '
@@ -465,7 +465,6 @@ def main(_):
 
         for example_index, example_rollout in enumerate(rollout_iterator):
             example_rollout['metadata'] = metadata
-            print('here 3')
             filename = f'rollout_{FLAGS.eval_split}_{example_index}.pkl'
             filename = os.path.join(FLAGS.output_path, filename)
             logging.info('Saving: %s.', filename)
@@ -473,7 +472,6 @@ def main(_):
                 os.mkdir(FLAGS.output_path)
             with open(filename, 'wb') as file:
                 pickle.dump(example_rollout, file)
-            print('here 4')
 
 
 if __name__ == '__main__':
