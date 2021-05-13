@@ -69,11 +69,11 @@ class EncodeProcessDecode(snt.AbstractModule):
     def _encode(
             self, input_graph: gn.graphs.GraphsTuple) -> gn.graphs.GraphsTuple:
 
-        if input_graph.globals is not None:
-            broadcasted_globals = gn.blocks.broadcast_globals_to_nodes(input_graph)
-            input_graph = input_graph.replace(
-                nodes=tf.concat([input_graph.nodes, broadcasted_globals], axis=-1),
-                globals=None)
+        # if input_graph.globals is not None:
+        #     broadcasted_globals = gn.blocks.broadcast_globals_to_nodes(input_graph)
+        #     input_graph = input_graph.replace(
+        #         nodes=tf.concat([input_graph.nodes, broadcasted_globals], axis=-1),
+        #         globals=None)
 
         latent_graph_0 = self._encoder_network(input_graph)
         return latent_graph_0
@@ -86,7 +86,7 @@ class EncodeProcessDecode(snt.AbstractModule):
                 process_network_k, latent_graph_prev_k)
             latent_graph_prev_k = latent_graph_k
 
-        latent_graph_m = latent_graph_k
+        latent_graph_m = latent_graph_prev_k
         return latent_graph_m
 
     def _process_step(

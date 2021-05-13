@@ -1,4 +1,5 @@
 import functools
+import sys
 
 import numpy as np
 import tensorflow as tf
@@ -24,20 +25,43 @@ _CONTEXT_FEATURES = {
     'n_cons': tf.io.VarLenFeature(tf.string)
 }
 
-
-def convert_to_tensor(x, encoded_dtype):
+"""def convert_to_tensor(x, encoded_dtype):
     if len(x) == 1:
         # tf.print(x, output_stream=sys.stdout)
         # out = np.frombuffer(x.numpy(), dtype=encoded_dtype)
+
         out = tf.io.parse_tensor(x[0], out_type=encoded_dtype)
     else:
         out = []
         i = 0
         for el in x:
             # tf.print(i, output_stream=sys.stdout)
-            out.append(np.frombuffer(el.numpy(), dtype=encoded_dtype))
+            #out.append(np.frombuffer(el.numpy(), dtype=encoded_dtype))
+            #a = np.argwhere(np.isnan(np.frombuffer(el.numpy(), dtype=encoded_dtype)))
+            b = np.frombuffer(el.numpy(), dtype=encoded_dtype)
+            out.append(np.nan_to_num(b))
+            a = np.argwhere(np.isnan(np.nan_to_num(b)))
+            tf.print(i, ': ', el.numpy(), '\n', output_stream=sys.stdout)
             i += 1
         out = tf.convert_to_tensor(np.array(out))
+    return out"""
+
+
+def convert_to_tensor(x, encoded_dtype):
+    if len(x) == 1:
+        # tf.print(x, output_stream=sys.stdout)
+        # out = np.frombuffer(x.numpy(), dtype=encoded_dtype)
+
+        out = tf.io.parse_tensor(x[0], out_type=encoded_dtype)
+    else:
+
+        out = []
+        i = 0
+        for el in x:
+            # tf.print(i, output_stream=sys.stdout)
+            out.append(np.frombuffer(el.numpy(), dtype=encoded_dtype))
+            i += 1
+    out = tf.convert_to_tensor(np.array(out))
     return out
 
 
@@ -52,6 +76,8 @@ def parse_serialized_simulation_example(example_proto):
             convert_to_tensor, encoded_dtype=_FEATURE_DTYPES[feature_key]['in'])
         parsed_features[feature_key] = tf.py_function(
             convert_fn, inp=[item.values], Tout=_FEATURE_DTYPES[feature_key]['out'])
+
+    tf.debugging.assert_all_finite(parsed_features['velocity'], 'No one will ever love you')
 
     velocity_shape = [200, -1, 2]
     parsed_features['velocity'] = tf.reshape(parsed_features['velocity'], velocity_shape)
@@ -80,6 +106,8 @@ def parse_serialized_simulation_example(example_proto):
     context['connections'] = tf.reshape(context['connections'], [-1, 3])
     context['n_nodes'] = tf.reshape(context['n_nodes'], [-1])
     context['n_cons'] = tf.reshape(context['n_cons'], [-1])
+
+    tf.debugging.assert_all_finite(parsed_features['velocity'], 'Just give up on dissertation already')
 
     return context, parsed_features
 

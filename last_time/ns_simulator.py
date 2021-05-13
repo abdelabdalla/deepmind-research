@@ -1,3 +1,5 @@
+import sys
+
 import graph_nets as gn
 import sonnet as snt
 import tensorflow as tf
@@ -81,8 +83,8 @@ class NSSimulator(snt.AbstractModule):
         return new_velocity
 
     def get_predicted_and_target_normalized_accelerations(
-            self, next_velocity, n_nodes, n_conn, velocity_sequence, node_locations, node_connections, velocity_sequence_noise):
-
+            self, next_velocity, n_nodes, n_conn, velocity_sequence, node_locations, node_connections,
+            velocity_sequence_noise):
         noisy_velocity_sequence = velocity_sequence + velocity_sequence_noise
         input_graphs_tuple = self._encoder_preprocessor(noisy_velocity_sequence, n_nodes, n_conn, node_locations,
                                                         node_connections)

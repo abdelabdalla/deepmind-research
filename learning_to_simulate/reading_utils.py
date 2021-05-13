@@ -53,6 +53,7 @@ def convert_to_tensor(x, encoded_dtype):
   if len(x) == 1:
     out = np.frombuffer(x[0].numpy(), dtype=encoded_dtype)
   else:
+
     out = []
     i = 0
     for el in x:

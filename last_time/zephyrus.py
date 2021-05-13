@@ -4,6 +4,7 @@ import os
 import sys
 
 import tensorflow.compat.v1 as tf
+from tensorflow.python import debug as tf_debug
 import tree
 from absl import app
 from absl import flags
@@ -12,6 +13,8 @@ from last_time import noise_utils
 from last_time import ns_simulator
 from last_time import reading_utils
 
+tf.enable_eager_execution()
+
 flags.DEFINE_enum(
     'mode', 'train', ['train', 'eval', 'eval_rollout'],
     help='Train model, one step evaluation or rollout evaluation.')
@@ -19,8 +22,8 @@ flags.DEFINE_enum('eval_split', 'test', ['train', 'valid', 'test'],
                   help='Split to use when running evaluation.')
 flags.DEFINE_string('data_path', None, help='The dataset directory.')
 flags.DEFINE_integer('batch_size', 2, help='The batch size.')
-flags.DEFINE_integer('num_steps', int(10), help='Number of steps of training.')
-flags.DEFINE_float('noise_std', 6.7e-4, help='The std deviation of the noise.')
+flags.DEFINE_integer('num_steps', int(2e7), help='Number of steps of training.')
+flags.DEFINE_float('noise_std', 2e-2, help='The std deviation of the noise.')
 flags.DEFINE_string('model_path', None,
                     help=('The path for saving checkpoints of the model. '
                           'Defaults to a temporary directory.'))
@@ -35,7 +38,6 @@ INPUT_SEQUENCE_LENGTH = 6
 
 
 def prepare_inputs(tensor_dict):
-
     vel = tensor_dict['velocity']
     vel = tf.transpose(vel, perm=[1, 0, 2])
 
@@ -51,7 +53,6 @@ def prepare_inputs(tensor_dict):
 
 
 def batch_concat(dataset, batch_size):
-
     windowed_ds = dataset.window(batch_size)
 
     initial_state = tree.map_structure(
@@ -68,7 +69,6 @@ def batch_concat(dataset, batch_size):
 
 
 def get_input_fn(data_path, batch_size, mode, split):
-
     def input_fn():
 
         ds = tf.data.TFRecordDataset([os.path.join(data_path, f'{split}.tfrecord')])
@@ -82,7 +82,7 @@ def get_input_fn(data_path, batch_size, mode, split):
             ds = ds.map(prepare_inputs)
             if mode == 'one_step_train':
                 ds = ds.repeat()
-                ds = ds.shuffle(512)
+                ds = ds.shuffle(batch_size * 50)
             # Custom batching on the leading axis.
             ds = batch_concat(ds, batch_size)
         return ds
@@ -154,7 +154,6 @@ def get_one_step_estimator_fn(noise_std,
                 predicted_next_velocity, target_next_velocity)
         }
 
-        tf.print('acc loss: ', eval_metrics_ops['loss_mse'], ' vel loss: ', eval_metrics_ops['one_step_position_mse'], output_stream=sys.stdout)
         return tf.estimator.EstimatorSpec(
             mode=mode,
             train_op=train_op,
@@ -171,10 +170,16 @@ def main(_):
             get_one_step_estimator_fn(FLAGS.noise_std), model_dir=FLAGS.model_path)
         if FLAGS.mode == 'train':
             # Train all the way through.
+            # sess = tf.Session()
+            # hooks = [tf_debug.LocalCLIDebugHook(ui_type="readline")]
+            # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
+            # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
+            # sess.run(
             estimator.train(
                 input_fn=get_input_fn(FLAGS.data_path, FLAGS.batch_size,
                                       mode='one_step_train', split='train'),
-                max_steps=FLAGS.num_steps)
+                max_steps=FLAGS.num_steps)  # , hooks=hooks)
+        # )
 
 
 if __name__ == '__main__':

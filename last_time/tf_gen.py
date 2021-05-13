@@ -46,7 +46,7 @@ def file_format(point_vel, point_location, point_connections, n_nodes, n_cons, k
         'n_cons': _bytes_feature(n_cons_serialized)
     }
 
-    features = [tf.train.Feature(bytes_list=tf.train.BytesList(value=[val.tostring()])) for val in point_vel]
+    features = [tf.train.Feature(bytes_list=tf.train.BytesList(value=[val.tobytes()])) for val in point_vel]
     featurelist = tf.train.FeatureList(feature=features)
 
     return tf.train.SequenceExample(context=tf.train.Features(feature=context),
@@ -54,7 +54,7 @@ def file_format(point_vel, point_location, point_connections, n_nodes, n_cons, k
 
 
 file_location = '/Users/abdelabdalla/Documents/Jet Updated'
-record_file = '/Volumes/Samsung/data_t3'
+record_file = '/Volumes/Samsung/data'
 
 run_dir = os.listdir(file_location)
 run_pattern = "run*"
@@ -94,16 +94,16 @@ for run in run_list:
         if time_steps >= 200:
             break
         mesh = meshio.read(path)
-        vels.append(np.delete(mesh.point_data['Velocity'], 2, 1).flatten())
+        vels.append(np.delete(mesh.point_data['Velocity'], 2, 1).flatten().astype(np.float32))
         time_steps += 1
 
     vel_list.append(vels)
-    loc_list.append(locs.flatten())
-    con_list.append(cons.flatten())
+    loc_list.append(locs.flatten().astype(np.float32))
+    con_list.append(cons.flatten().astype(np.int64))
     n_nodes_list.append(len(locs))
     n_cons_list.append(len(cons))
 
-"""with tf.io.TFRecordWriter(record_file + '/train.tfrecord') as writer:
+with tf.io.TFRecordWriter(record_file + '/train.tfrecord') as writer:
     for i in range(0, 40):
         print('writing train ' + str(i))
         tf_example = file_format(vel_list[i], loc_list[i], con_list[i], n_nodes_list[i], n_cons_list[i], i)
@@ -119,4 +119,4 @@ with tf.io.TFRecordWriter(record_file + '/validate.tfrecord') as writer:
     for i in range(44, 48):
         print('writing validate ' + str(i))
         tf_example = file_format(vel_list[i], loc_list[i], con_list[i], n_nodes_list[i], n_cons_list[i], i)
-        writer.write(tf_example.SerializeToString())"""
+        writer.write(tf_example.SerializeToString())
