@@ -1,13 +1,13 @@
 import collections
 import functools
 import os
-import sys
+import pickle
 
 import tensorflow.compat.v1 as tf
-from tensorflow.python import debug as tf_debug
 import tree
 from absl import app
 from absl import flags
+from absl import logging
 
 from last_time import noise_utils
 from last_time import ns_simulator
@@ -45,11 +45,25 @@ def prepare_inputs(tensor_dict):
 
     tensor_dict['velocity'] = vel[:, :-1]
 
-    # num_nodes = tf.shape(vel)[0]
-
-    # tensor_dict['n_nodes_per_example'] = num_nodes[tf.newaxis]
-
     return tensor_dict, target_vel
+
+
+def prepare_rollout_inputs(context, features):
+    out_dict = {**context}
+
+    vel = tf.transpose(features['velocity'], [1, 0, 2])
+
+    target_vel = vel[:, -1]
+
+    out_dict['velocity'] = vel[:, :-1]
+    out_dict['n_nodes'] = features['n_nodes']
+    out_dict['n_cons'] = features['n_cons']
+    out_dict['locations'] = features['locations']
+    out_dict['connections'] = features['connections']
+
+    out_dict['is_trajectory'] = tf.constant([True], tf.bool)
+
+    return out_dict, target_vel
 
 
 def batch_concat(dataset, batch_size):
@@ -85,9 +99,53 @@ def get_input_fn(data_path, batch_size, mode, split):
                 ds = ds.shuffle(batch_size * 50)
             # Custom batching on the leading axis.
             ds = batch_concat(ds, batch_size)
+
+        elif mode == 'rollout':
+            # Rollout evaluation only available for batch size 1
+            assert batch_size == 1
+            ds = ds.map(prepare_rollout_inputs)
+        else:
+            raise ValueError(f'mode: {mode} not recognized')
         return ds
 
     return input_fn
+
+
+def rollout(simulator, features, num_steps):
+    initial_vel = features['velocity'][:, 0:INPUT_SEQUENCE_LENGTH]
+    ground_truth_vel = features['velocity'][:, INPUT_SEQUENCE_LENGTH:]
+    global_context = features.get('step_context')
+
+    def step_fn(step, current_vels, predictions):
+        next_vel = simulator(velocity_sequence=current_vels,
+                             n_nodes=features['n_nodes'],
+                             n_conn=features['n_cons'],
+                             node_locations=features['locations'],
+                             node_connections=features['connections'])
+
+        updated_predictions = predictions.write(step, next_vel)
+
+        next_vels = tf.concat([current_vels[:, 1:],
+                               next_vel[:, tf.newaxis]], axis=1)
+
+        return step + 1, next_vels, updated_predictions
+
+    predictions = tf.TensorArray(size=num_steps, dtype=tf.float32)
+    _, _, predictions = tf.while_loop(
+        cond=lambda step, state, prediction: tf.less(step, num_steps),
+        body=step_fn,
+        loop_vars=(0, initial_vel, predictions),
+        back_prop=False,
+        parallel_iterations=1)
+
+    output_dict = {
+        'initial_positions': tf.transpose(initial_vel, [1, 0, 2]),
+        'predicted_rollout': predictions.stack(),
+        'ground_truth_rollout': tf.transpose(ground_truth_vel, [1, 0, 2]),
+        'particle_types': features['particle_type'],
+    }
+
+    return output_dict
 
 
 def _get_simulator(model_kwargs):
@@ -164,22 +222,79 @@ def get_one_step_estimator_fn(noise_std,
     return estimator_fn
 
 
+def get_rollout_estimator_fn(latent_size=128,
+                             hidden_size=128,
+                             hidden_layers=2,
+                             message_passing_steps=10):
+    model_kwargs = dict(
+        latent_size=latent_size,
+        mlp_hidden_size=hidden_size,
+        mlp_num_hidden_layers=hidden_layers,
+        num_message_passing_steps=message_passing_steps)
+
+    def estimator_fn(features, labels, mode):
+        del labels  # Labels to conform to estimator spec.
+        simulator = _get_simulator(model_kwargs)
+
+        num_steps = 200 - INPUT_SEQUENCE_LENGTH
+        rollout_op = rollout(simulator, features, num_steps=num_steps)
+        squared_error = (rollout_op['predicted_rollout'] -
+                         rollout_op['ground_truth_rollout']) ** 2
+        loss = tf.reduce_mean(squared_error)
+        eval_ops = {'rollout_error_mse': tf.metrics.mean_squared_error(
+            rollout_op['predicted_rollout'], rollout_op['ground_truth_rollout'])}
+
+        # Add a leading axis, since Estimator's predict method insists that all
+        # tensors have a shared leading batch axis fo the same dims.
+        rollout_op = tree.map_structure(lambda x: x[tf.newaxis], rollout_op)
+
+        return tf.estimator.EstimatorSpec(
+            mode=mode,
+            train_op=None,
+            loss=loss,
+            predictions=rollout_op,
+            eval_metric_ops=eval_ops)
+
+    return estimator_fn
+
+
 def main(_):
     if FLAGS.mode in ['train', 'eval']:
         estimator = tf.estimator.Estimator(
             get_one_step_estimator_fn(FLAGS.noise_std), model_dir=FLAGS.model_path)
         if FLAGS.mode == 'train':
-            # Train all the way through.
-            # sess = tf.Session()
-            # hooks = [tf_debug.LocalCLIDebugHook(ui_type="readline")]
-            # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
-            # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
-            # sess.run(
             estimator.train(
                 input_fn=get_input_fn(FLAGS.data_path, FLAGS.batch_size,
                                       mode='one_step_train', split='train'),
-                max_steps=FLAGS.num_steps)  # , hooks=hooks)
-        # )
+                max_steps=FLAGS.num_steps)
+
+        else:
+            eval_metrics = estimator.evaluate(input_fn=get_input_fn(
+                FLAGS.data_path, FLAGS.batch_size,
+                mode='one_step', split=FLAGS.eval_split))
+            logging.info('Evaluation metrics:')
+            logging.info(eval_metrics)
+
+    elif FLAGS.mode == 'eval_rollout':
+        if not FLAGS.output_path:
+            raise ValueError('A rollout path must be provided.')
+        rollout_estimator = tf.estimator.Estimator(
+            get_rollout_estimator_fn(FLAGS.data_path, FLAGS.noise_std),
+            model_dir=FLAGS.model_path)
+
+        # Iterate through rollouts saving them one by one.
+        rollout_iterator = rollout_estimator.predict(
+            input_fn=get_input_fn(FLAGS.data_path, batch_size=1,
+                                  mode='rollout', split=FLAGS.eval_split))
+
+        for example_index, example_rollout in enumerate(rollout_iterator):
+            filename = f'rollout_{FLAGS.eval_split}_{example_index}.pkl'
+            filename = os.path.join(FLAGS.output_path, filename)
+            logging.info('Saving: %s.', filename)
+            if not os.path.exists(FLAGS.output_path):
+                os.mkdir(FLAGS.output_path)
+            with open(filename, 'wb') as file:
+                pickle.dump(example_rollout, file)
 
 
 if __name__ == '__main__':

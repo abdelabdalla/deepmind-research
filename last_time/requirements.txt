@@ -7,3 +7,4 @@ tensorflow_probability<0.9
 sklearn
 dm-tree
 matplotlib
+meshio
