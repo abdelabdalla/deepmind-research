@@ -463,15 +463,17 @@ def main(_):
             input_fn=get_input_fn(FLAGS.data_path, batch_size=1,
                                   mode='rollout', split=FLAGS.eval_split))
 
-        for example_index, example_rollout in enumerate(rollout_iterator):
-            example_rollout['metadata'] = metadata
-            filename = f'rollout_{FLAGS.eval_split}_{example_index}.pkl'
-            filename = os.path.join(FLAGS.output_path, filename)
-            logging.info('Saving: %s.', filename)
-            if not os.path.exists(FLAGS.output_path):
-                os.mkdir(FLAGS.output_path)
-            with open(filename, 'wb') as file:
-                pickle.dump(example_rollout, file)
+        #print(list(rollout_iterator))
+
+        # for example_index, example_rollout in enumerate(rollout_iterator):
+        #     example_rollout['metadata'] = metadata
+        #     filename = f'rollout_{FLAGS.eval_split}_{example_index}.pkl'
+        #     filename = os.path.join(FLAGS.output_path, filename)
+        #     logging.info('Saving: %s.', filename)
+        #     if not os.path.exists(FLAGS.output_path):
+        #         os.mkdir(FLAGS.output_path)
+        #     with open(filename, 'wb') as file:
+        #         pickle.dump(example_rollout, file)
 
 
 if __name__ == '__main__':

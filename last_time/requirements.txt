@@ -1,10 +1,10 @@
 absl-py
 graph-nets
-tensorflow<2
+tensorflow-gpu<2
 numpy==1.19
 dm-sonnet<2
-tensorflow_probability<0.9
-sklearn
+tensorflow-probability<0.9
+scikit-learn
 dm-tree
 matplotlib
 meshio

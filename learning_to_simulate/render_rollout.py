@@ -94,10 +94,10 @@ def main(unused_argv):
 
     unused_animation = animation.FuncAnimation(
         fig, update,
-        frames=np.arange(0, num_steps, FLAGS.step_stride), interval=10, repeat=True, save_count=200)
+        frames=np.arange(0, num_steps, FLAGS.step_stride), interval=5, repeat=True, save_count=200)
     plt.show(block=FLAGS.block_on_show)
 
-    file = '/tmp/animation.gif'
+    file = 'D:\\Users\\abdel\\Documents\\animation.gif'
     unused_animation.save(file, writer='imagemagick', fps=30)
 
 

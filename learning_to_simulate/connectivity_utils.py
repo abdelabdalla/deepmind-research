@@ -19,7 +19,7 @@ import sys
 
 import numpy as np
 from sklearn import neighbors
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
 
 
 def _compute_connectivity(positions, radius):
@@ -40,8 +40,6 @@ def _compute_connectivity(positions, radius):
     num_nodes = len(positions)
     senders = np.repeat(range(num_nodes), [len(a) for a in receivers_list])
     receivers = np.concatenate(receivers_list, axis=0)
-
-    tf.print(senders, output_stream=sys.stdout)
 
     return senders, receivers
 

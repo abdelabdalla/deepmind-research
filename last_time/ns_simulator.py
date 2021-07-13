@@ -60,7 +60,7 @@ class NSSimulator(snt.AbstractModule):
 
         relative_displacements = send - rec
         edge_features.append(relative_displacements)
-        relative_distances = tf.norm(relative_displacements, axis=-1, keep_dims=True)
+        relative_distances = tf.norm(relative_displacements, axis=-1, keepdims=True)
         edge_features.append(relative_distances)
 
         return gn.graphs.GraphsTuple(

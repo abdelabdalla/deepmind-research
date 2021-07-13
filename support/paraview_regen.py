@@ -9,13 +9,12 @@ from paraview.simple import *
 #### disable automatic camera reset on 'Show'
 paraview.simple._DisableFirstRenderCameraReset()
 
-files_path = '/Volumes/NO NAME/convert'
+files_path = 'D:\\Users\\abdel\\Documents\\Disso_New_Data'
 
-i = 0
-for i in range(0, 1200):
+for i in range(1, 201):
 
     print('folder: ' + str(i))
-    f_p = files_path + '/run' + str(i)
+    f_p = files_path + '/Run' + str(i)
 
     run = False
 
@@ -49,8 +48,8 @@ for i in range(0, 1200):
         flow_00.TimeArray = 'TimeValue'
 
         # save data
-        os.makedirs('/Users/abdelabdalla/Documents/Jet Updated/run' + str(i))
-        SaveData('/Users/abdelabdalla/Documents/Jet Updated/run' + str(i) + '/flow.vtk', proxy=flow_00,
+        os.makedirs('D:\\Users\\abdel\\Documents\\Disso_New_Data_Updated\\run' + str(i))
+        SaveData('D:\\Users\\abdel\\Documents\\Disso_New_Data_Updated\\run' + str(i) + '\\flow.vtk', proxy=flow_00,
                  ChooseArraysToWrite=0,
                  PointDataArrays=['Density', 'Eddy_Viscosity', 'Heat_Flux', 'Laminar_Viscosity', 'Nu_Tilde', 'Pressure',
                                   'Pressure_Coefficient', 'Skin_Friction_Coefficient', 'Velocity', 'Y_Plus'],

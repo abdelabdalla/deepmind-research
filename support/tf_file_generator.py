@@ -53,8 +53,8 @@ def file_format(point_vel, point_location, point_connections, n_nodes, n_cons, k
                                     feature_lists=tf.train.FeatureLists(feature_list={'velocity': featurelist}))
 
 
-file_location = '/Users/abdelabdalla/Documents/Jet Updated'
-record_file = '/Volumes/Samsung/data'
+file_location = 'D:\\Users\\abdel\\Documents\\Disso_New_Data_Updated'
+record_file = 'D:\\Users\\abdel\\Documents\\new_dataset'
 
 run_dir = os.listdir(file_location)
 run_pattern = "run*"
@@ -73,7 +73,7 @@ for entry in run_dir:
 for run in run_list:
     print('folder ' + run)
 
-    list_of_files = os.listdir(file_location + '/' + run)
+    list_of_files = os.listdir(file_location + '\\' + run)
     pattern = "flow_*.vtk"
     list_of_names = []
 
@@ -83,7 +83,7 @@ for run in run_list:
 
     list.sort(list_of_names)
 
-    list_of_paths = [file_location + '/' + run + '/' + s for s in list_of_names]
+    list_of_paths = [file_location + '\\' + run + '\\' + s for s in list_of_names]
     mesh_first = meshio.read(list_of_paths[0])
     locs = np.delete(mesh_first.points, 2, 1)
     cons = np.array(mesh_first.cells_dict['triangle'])
@@ -103,20 +103,22 @@ for run in run_list:
     n_nodes_list.append(len(locs))
     n_cons_list.append(len(cons))
 
-with tf.io.TFRecordWriter(record_file + '/train.tfrecord') as writer:
-    for i in range(0, 40):
+
+
+with tf.io.TFRecordWriter(record_file + '\\train.tfrecord') as writer:
+    for i in range(0, 36):
         print('writing train ' + str(i))
         tf_example = file_format(vel_list[i], loc_list[i], con_list[i], n_nodes_list[i], n_cons_list[i], i)
         writer.write(tf_example.SerializeToString())
 
-with tf.io.TFRecordWriter(record_file + '/test.tfrecord') as writer:
-    for i in range(40, 44):
+with tf.io.TFRecordWriter(record_file + '\\test.tfrecord') as writer:
+    for i in range(36, 53):
         print('writing test ' + str(i))
         tf_example = file_format(vel_list[i], loc_list[i], con_list[i], n_nodes_list[i], n_cons_list[i], i)
         writer.write(tf_example.SerializeToString())
 
-with tf.io.TFRecordWriter(record_file + '/validate.tfrecord') as writer:
-    for i in range(44, 48):
+with tf.io.TFRecordWriter(record_file + '\\validate.tfrecord') as writer:
+    for i in range(53, 70):
         print('writing validate ' + str(i))
         tf_example = file_format(vel_list[i], loc_list[i], con_list[i], n_nodes_list[i], n_cons_list[i], i)
         writer.write(tf_example.SerializeToString())

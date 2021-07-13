@@ -16,7 +16,7 @@
 # ============================================================================
 """Methods to calculate input noise."""
 
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
 
 from learning_to_simulate import learned_simulator
 

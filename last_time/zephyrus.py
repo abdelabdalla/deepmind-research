@@ -2,8 +2,9 @@ import collections
 import functools
 import os
 import pickle
+import sys
 
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
 import tree
 from absl import app
 from absl import flags
@@ -13,7 +14,7 @@ from last_time import noise_utils
 from last_time import ns_simulator
 from last_time import reading_utils
 
-tf.enable_eager_execution()
+# tf.enable_eager_execution()
 
 flags.DEFINE_enum(
     'mode', 'train', ['train', 'eval', 'eval_rollout'],
@@ -56,10 +57,11 @@ def prepare_rollout_inputs(context, features):
     target_vel = vel[:, -1]
 
     out_dict['velocity'] = vel[:, :-1]
-    out_dict['n_nodes'] = features['n_nodes']
-    out_dict['n_cons'] = features['n_cons']
-    out_dict['locations'] = features['locations']
-    out_dict['connections'] = features['connections']
+    print(context['n_nodes'])
+    out_dict['n_nodes'] = context['n_nodes']
+    out_dict['n_cons'] = context['n_cons']
+    out_dict['locations'] = context['locations']
+    out_dict['connections'] = context['connections']
 
     out_dict['is_trajectory'] = tf.constant([True], tf.bool)
 
@@ -114,7 +116,7 @@ def get_input_fn(data_path, batch_size, mode, split):
 def rollout(simulator, features, num_steps):
     initial_vel = features['velocity'][:, 0:INPUT_SEQUENCE_LENGTH]
     ground_truth_vel = features['velocity'][:, INPUT_SEQUENCE_LENGTH:]
-    global_context = features.get('step_context')
+    # global_context = features.get('step_context')
 
     def step_fn(step, current_vels, predictions):
         next_vel = simulator(velocity_sequence=current_vels,
@@ -128,7 +130,7 @@ def rollout(simulator, features, num_steps):
         next_vels = tf.concat([current_vels[:, 1:],
                                next_vel[:, tf.newaxis]], axis=1)
 
-        return step + 1, next_vels, updated_predictions
+        return (step + 1, next_vels, updated_predictions)
 
     predictions = tf.TensorArray(size=num_steps, dtype=tf.float32)
     _, _, predictions = tf.while_loop(
@@ -139,10 +141,13 @@ def rollout(simulator, features, num_steps):
         parallel_iterations=1)
 
     output_dict = {
-        'initial_positions': tf.transpose(initial_vel, [1, 0, 2]),
+        'initial_velocity': tf.transpose(initial_vel, [1, 0, 2]),
         'predicted_rollout': predictions.stack(),
         'ground_truth_rollout': tf.transpose(ground_truth_vel, [1, 0, 2]),
-        'particle_types': features['particle_type'],
+        'n_nodes': features['n_nodes'],
+        'n_cons': features['n_cons'],
+        'locations': features['locations'],
+        'connections': features['connections'],
     }
 
     return output_dict
@@ -222,7 +227,8 @@ def get_one_step_estimator_fn(noise_std,
     return estimator_fn
 
 
-def get_rollout_estimator_fn(latent_size=128,
+def get_rollout_estimator_fn(noise_std,
+                             latent_size=128,
                              hidden_size=128,
                              hidden_layers=2,
                              message_passing_steps=10):
@@ -261,30 +267,31 @@ def get_rollout_estimator_fn(latent_size=128,
 def main(_):
     if FLAGS.mode in ['train', 'eval']:
         estimator = tf.estimator.Estimator(
-            get_one_step_estimator_fn(FLAGS.noise_std), model_dir=FLAGS.model_path)
+            get_one_step_estimator_fn(noise_std=FLAGS.noise_std), model_dir=FLAGS.model_path)
         if FLAGS.mode == 'train':
             estimator.train(
-                input_fn=get_input_fn(FLAGS.data_path, FLAGS.batch_size,
+                input_fn=get_input_fn(data_path=FLAGS.data_path, batch_size=FLAGS.batch_size,
                                       mode='one_step_train', split='train'),
                 max_steps=FLAGS.num_steps)
 
         else:
             eval_metrics = estimator.evaluate(input_fn=get_input_fn(
-                FLAGS.data_path, FLAGS.batch_size,
+                data_path=FLAGS.data_path, batch_size=FLAGS.batch_size,
                 mode='one_step', split=FLAGS.eval_split))
             logging.info('Evaluation metrics:')
             logging.info(eval_metrics)
 
     elif FLAGS.mode == 'eval_rollout':
+
         if not FLAGS.output_path:
             raise ValueError('A rollout path must be provided.')
         rollout_estimator = tf.estimator.Estimator(
-            get_rollout_estimator_fn(FLAGS.data_path, FLAGS.noise_std),
+            get_rollout_estimator_fn(noise_std=FLAGS.noise_std),
             model_dir=FLAGS.model_path)
 
         # Iterate through rollouts saving them one by one.
         rollout_iterator = rollout_estimator.predict(
-            input_fn=get_input_fn(FLAGS.data_path, batch_size=1,
+            input_fn=get_input_fn(data_path=FLAGS.data_path, batch_size=1,
                                   mode='rollout', split=FLAGS.eval_split))
 
         for example_index, example_rollout in enumerate(rollout_iterator):
